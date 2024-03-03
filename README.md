@@ -1,5 +1,28 @@
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+# Welcome to wallet connect template for xrpl!
+
+This is a template for a wallet connect app for the xrpl. It is built with next.js, shadcn and tailwind css!
+
+## Which wallets are supported?
+
+This template supports the following wallets:
+
+- [XUMM](https://xumm.app/)
+- [GEM](https://gemwallet.app/)
+- [CROSSMARK](https://crossmark.io/)
+
+## How to use this template?
+> Note: This template comes with JWT authentication.
+
+To use this template, you can clone this repository and start building your app. You can also use this template to create a new starter project on xrpl!
+
+To get started, first head over to xumm dev portal [here](https://apps.xumm.dev/) and get your api keys and use the `.env.template` file as a reference to create a `.env` file with your api keys.
+
+Dont forget to also pass in a `ENC_KEY` in your `.env` file. This is the key that will be used to encrypt the user's address to store in cookies.
+
+# Next.js readme 
+
 ## Getting Started
 
 First, run the development server:

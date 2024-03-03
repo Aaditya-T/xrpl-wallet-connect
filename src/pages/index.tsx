@@ -1,118 +1,279 @@
 import Image from "next/image";
 import { Inter } from "next/font/google";
+import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
+import { Skeleton } from "@/components/ui/skeleton"
+import { isInstalled, getPublicKey, signMessage } from "@gemwallet/api";
+import sdk from "@crossmarkio/sdk";
+import {useCookies} from "react-cookie";
+
+import { useEffect, useState } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Home() {
+  const [qrcode, setQrcode] = useState<string>("");
+  const [jumpLink, setJumpLink] = useState<string>("");
+  const [xrpAddress, setXrpAddress] = useState<string>("");
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [cookies, setCookie, removeCookie] = useCookies(["jwt"]);
+  const [enableJwt, setEnableJwt] = useState<boolean>(false);
+  const [retrieved, setRetrieved] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setIsMobile(true);
+    }
+
+    if (cookies.jwt !== undefined && cookies.jwt !== null) {
+      const url = "/api/auth";
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token: cookies.jwt }),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.hasOwnProperty("xrpAddress")) {
+            setXrpAddress(data.xrpAddress);
+            setRetrieved(true);
+          }
+        });
+    }
+  }, []);
+
+  const getQrCode = async () => {
+    const payload = await fetch("/api/auth/xumm/createpayload");
+    const data = await payload.json();
+
+    setQrcode(data.payload.refs.qr_png);
+    setJumpLink(data.payload.next.always);
+
+    if (isMobile) {
+      //open in new tab
+      window.open(data.payload.next.always, "_blank");
+    }
+
+    const ws = new WebSocket(data.payload.refs.websocket_status);
+
+    ws.onmessage = async (e) => {
+      let responseObj = JSON.parse(e.data);
+      if (responseObj.signed !== null && responseObj.signed !== undefined) {
+        const payload = await fetch(
+          `/api/auth/xumm/getpayload?payloadId=${responseObj.payload_uuidv4}`
+        );
+        const payloadJson = await payload.json();
+
+        const hex = payloadJson.payload.response.hex;
+        const checkSign = await fetch(`/api/auth/xumm/checksign?hex=${hex}`);
+        const checkSignJson = await checkSign.json();
+        setXrpAddress(checkSignJson.xrpAddress)
+        if (enableJwt) {
+          setCookie("jwt", checkSignJson.token, { path: "/" });
+        }
+      } else {
+        console.log(responseObj);
+      }
+    };
+  };
+
+  const handleConnectGem = () => {
+    isInstalled().then((response) => {
+      if (response.result.isInstalled) {
+        getPublicKey().then((response) => {
+          // console.log(`${response.result?.address} - ${response.result?.publicKey}`);
+          const pubkey = response.result?.publicKey;
+          //fetch nonce from /api/gem/nonce?pubkey=pubkey
+          fetch(
+            `/api/auth/gem/nonce?pubkey=${pubkey}&address=${response.result?.address}`
+          )
+            .then((response) => response.json())
+            .then((data) => {
+              const nonceToken = data.token;
+              const opts = {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${nonceToken}`,
+                },
+              };
+              signMessage(nonceToken).then((response) => {
+                const signedMessage = response.result?.signedMessage;
+                if (signedMessage !== undefined) {
+                  //post at /api/gem/checksign?signature=signature
+                  fetch(`/api/auth/gem/checksign?signature=${signedMessage}`, opts)
+                    .then((response) => response.json())
+                    .then((data) => {
+                      const { token, address } = data;
+                      if (token === undefined) {
+                        console.log("error");
+                        return;
+                      }
+                      setXrpAddress(address);
+                      if (enableJwt) {
+                        setCookie("jwt", token, { path: "/" });
+                      }
+                    });
+                }
+              });
+            });
+        });
+      }
+    });
+  };
+
+  const handleConnectCrossmark = async () => {
+    //sign in first, then generate nonce
+    const hashUrl = "/api/auth/crossmark/hash";
+    const hashR = await fetch(hashUrl);
+    const hashJson = await hashR.json();
+    const hash = hashJson.hash;
+    const id = await sdk.methods.signInAndWait(hash)
+    console.log(id);
+    const address = id.response.data.address;
+    const pubkey = id.response.data.publicKey;
+    const signature = id.response.data.signature;
+    const checkSign = await fetch(
+      `/api/auth/crossmark/checksign?signature=${signature}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${hash}`,
+        },
+        body: JSON.stringify({
+          pubkey: pubkey,
+          address: address,
+        }),
+      }
+    );
+
+    const checkSignJson = await checkSign.json();
+    if (checkSignJson.hasOwnProperty("token")) {
+      setXrpAddress(address);
+      if (enableJwt) {
+        setCookie("jwt", checkSignJson.token, { path: "/" });
+      }
+    }
+  };
+
   return (
     <main
       className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
     >
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/pages/index.tsx</code>
+      <div className="flex flex-col items-center">
+        <h1 className="text-4xl font-bold text-center">
+          Welcome to XRPL wallet connect template!
+        </h1>
+        <p className="text-center mt-4 text-lg">
+          This is a template for creating a wallet connect app with XRPL. Includes basic JWT authentication and 3 different wallet types.
         </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+        <a
+          href="https://github.com/Aaditya-T"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center"
+        >
+          <Image
+            src="https://github.githubassets.com/assets/GitHub-Mark-ea2971cee799.png"
+            alt="Github logo"
+            width={24}
+            height={24}
+            className="mr-2"
+          />
+          <span>Crafted by Aaditya (A.K.A Ghost!)</span>
+        </a>
+        <Drawer>
+
+          <DrawerTrigger className="mt-8 bg-blue-500 hover:bg-blue-600 w-48 h-12 rounded-lg text-white" onClick={getQrCode}>
+            Connect with XAMAN
+          </DrawerTrigger>
+          <DrawerContent className="bg-white p-4">
+            <DrawerHeader className="flex flex-col items-center">
+              <DrawerTitle>Scann this qr code to sign in with xaman!</DrawerTitle>
+            </DrawerHeader>
+            <DrawerDescription className="flex flex-col items-center">
+              {
+                qrcode !== "" ? (
+                  <Image
+                    src={qrcode}
+                    alt="xaman qr code"
+                    width={200}
+                    height={200}
+                  />
+                ) : (
+                  <div className="flex flex-col space-y-3">
+                    <Skeleton className="h-[250px] w-[250px] rounded-xl bg-gray-300" />
+                  </div>
+                )
+              }
+              {jumpLink !== "" && (
+                <Button className="mt-2 bg-blue-400 hover:bg-blue-500 w-48 h-12" onClick={() => {
+                  window.open(jumpLink, "_blank");
+                }}>
+                  Open in Xaman
+                </Button>
+              )}
+            </DrawerDescription>
+          </DrawerContent>
+        </Drawer>
+
+        <Button
+          className="mt-2 bg-blue-400 hover:bg-blue-500 w-48 h-12"
+          onClick={handleConnectGem}
+        >
+          Connect with GEM
+        </Button>
+
+        <Button
+          className="mt-2 bg-orange-500 hover:bg-orange-600 w-48 h-12"
+          onClick={handleConnectCrossmark}
+        >
+          Connect with Crossmark
+        </Button>
+
+        <div className="mt-2">
+          <input
+            type="checkbox"
+            id="enableJwt"
+            name="enableJwt"
+            checked={enableJwt}
+            onChange={() => setEnableJwt(!enableJwt)}
+          />
+          <label htmlFor="enableJwt" className="ml-2">
+            Enable JWT
+          </label>
+        </div>
+
+        <div className="mt-8">
+          {xrpAddress !== "" && (
+            <p className="text-center">
+              Your XRP address is: <span className="font-bold">{xrpAddress}</span>
+              {retrieved && (
+                <span className="text-red-500 underline" onClick={() => {
+                  removeCookie("jwt");
+                  setRetrieved(false);
+                  setXrpAddress("");
+                }}>
+                  (Retrieved from cookies, click to remove)
+                </span>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700/10 after:dark:from-sky-900 after:dark:via-[#0141ff]/40 before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Discover and deploy boilerplate example Next.js&nbsp;projects.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
     </main>
   );
 }
