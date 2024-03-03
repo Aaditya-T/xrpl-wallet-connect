@@ -272,6 +272,21 @@ export default function Home() {
             </p>
           )}
         </div>
+
+        <div className="mt-8">
+          <p className="text-center">
+            Have a suggestion or found a bug? Open an issue on the{" "}
+            <a
+              href="https://github.com/Aaditya-T/xrpl-wallet-connect"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500"
+            >
+              GitHub repository
+            </a>
+          </p>
+        </div>
+
       </div>
 
     </main>
