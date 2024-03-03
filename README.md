@@ -21,6 +21,13 @@ To get started, first head over to xumm dev portal [here](https://apps.xumm.dev/
 
 Dont forget to also pass in a `ENC_KEY` in your `.env` file. This is the key that will be used to encrypt the user's address to store in cookies.
 
+# Future update plans!
+
+- [ ] Add support for wallet connect.
+- [ ] Integrate next-auth for authentication.
+- [ ] Make it an npm package!
+
+
 # Next.js readme 
 
 ## Getting Started
