@@ -259,7 +259,7 @@ export default function Home() {
         <div className="mt-8">
           {xrpAddress !== "" && (
             <p className="text-center">
-              Your XRP address is: <span className="font-bold">{xrpAddress}</span>
+              Your XRP address is: <a className="font-bold" href={`https://bithomp.com/explorer/${xrpAddress}`}>{xrpAddress.slice(0, 3)}...{xrpAddress.slice(-3)}</a>{" "}
               {retrieved && (
                 <span className="text-red-500 underline" onClick={() => {
                   removeCookie("jwt");
