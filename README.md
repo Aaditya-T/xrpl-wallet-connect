@@ -8,7 +8,7 @@ This is a template for a wallet connect app for the xrpl. It is built with next.
 
 This template supports the following wallets:
 
-- [XUMM](https://xumm.app/)
+- [XUMM](https://xumm.app/) 
 - [GEM](https://gemwallet.app/)
 - [CROSSMARK](https://crossmark.io/)
 
