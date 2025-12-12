@@ -13,18 +13,41 @@ This template supports the following wallets:
 - [CROSSMARK](https://crossmark.io/)
 
 ## How to use this template?
-> Note: This template comes with JWT authentication.
+> Note: This template comes with NextAuth.js authentication for secure session management.
 
 To use this template, you can clone this repository and start building your app. You can also use this template to create a new starter project on xrpl!
 
-To get started, first head over to xumm dev portal [here](https://apps.xumm.dev/) and get your api keys and use the `.env.template` file as a reference to create a `.env` file with your api keys.
+To get started, first head over to xumm dev portal [here](https://apps.xumm.dev/) and get your api keys. Then create a `.env` file in the root directory with the following variables:
 
-Dont forget to also pass in a `ENC_KEY` in your `.env` file. This is the key that will be used to encrypt the user's address to store in cookies.
+```env
+# XUMM API Keys (Get from https://apps.xumm.dev/)
+XUMM_KEY=your_xumm_api_key_here
+XUMM_KEY_SECRET=your_xumm_api_secret_here
+
+# Encryption key for JWT tokens (use a strong random string)
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ENC_KEY=your_encryption_key_here
+
+# NextAuth.js configuration
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret_here
+```
+
+**Important:** 
+- `ENC_KEY` is used to encrypt the user's address in JWT tokens
+- `NEXTAUTH_SECRET` should be a random string (you can generate it the same way as ENC_KEY)
+- `NEXTAUTH_URL` should match your deployment URL in production
+
+# Features
+
+- ✅ NextAuth.js integration for secure authentication
+- ✅ Support for XUMM, GEM, and Crossmark wallets
+- ✅ TypeScript support
+- ✅ Modern UI with Tailwind CSS and shadcn/ui
 
 # Future update plans!
 
 - [ ] Add support for wallet connect.
-- [ ] Integrate next-auth for authentication.
 - [ ] Make it an npm package!
 
 

@@ -50,7 +50,7 @@ export default function Home() {
           Welcome to XRPL wallet connect template!
         </h1>
         <p className="text-center mt-4 text-lg">
-          This is a template for creating a wallet connect app with XRPL. Includes basic JWT authentication and 3 different wallet types.
+          This is a template for creating a wallet connect app with XRPL. Includes NextAuth.js authentication and 3 different wallet types.
         </p>
         <a
           href="https://github.com/Aaditya-T"
@@ -160,7 +160,7 @@ export default function Home() {
               {isRetrieved && (
                 <p className="mt-2">
                   <span className="text-sm text-gray-600">
-                    (Retrieved from cookies)
+                    (Authenticated via NextAuth)
                   </span>
                 </p>
               )}

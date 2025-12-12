@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useCookies } from "react-cookie";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { isInstalled, getPublicKey, signMessage } from "@gemwallet/api";
 import sdk from "@crossmarkio/sdk";
 
@@ -17,13 +17,12 @@ interface UseWalletReturn {
 }
 
 export function useWallet(enableJwt: boolean = false): UseWalletReturn {
+  const { data: session, status } = useSession();
   const [xrpAddress, setXrpAddress] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isRetrieved, setIsRetrieved] = useState<boolean>(false);
   const [xummQrCode, setXummQrCode] = useState<string>("");
   const [xummJumpLink, setXummJumpLink] = useState<string>("");
-  const [cookies, setCookie, removeCookie] = useCookies(["jwt"]);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Cleanup WebSocket on unmount
@@ -35,27 +34,14 @@ export function useWallet(enableJwt: boolean = false): UseWalletReturn {
     };
   }, []);
 
-  // Check for existing JWT on mount
+  // Sync session with local state
   useEffect(() => {
-    if (cookies.jwt) {
-      fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: cookies.jwt }),
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.xrpAddress) {
-            setXrpAddress(data.xrpAddress);
-            setIsRetrieved(true);
-          }
-        })
-        .catch(() => {
-          // Silently fail if token is invalid
-          removeCookie("jwt");
-        });
+    if (status === "authenticated" && session?.user?.address) {
+      setXrpAddress(session.user.address);
+    } else if (status === "unauthenticated") {
+      setXrpAddress("");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, status]);
 
   const connectXUMM = useCallback(async () => {
     setIsLoading(true);
@@ -107,7 +93,10 @@ export function useWallet(enableJwt: boolean = false): UseWalletReturn {
 
             setXrpAddress(checkSignJson.xrpAddress);
             if (enableJwt && checkSignJson.token) {
-              setCookie("jwt", checkSignJson.token, { path: "/" });
+              await signIn("xumm", {
+                token: checkSignJson.token,
+                redirect: false,
+              });
             }
             setIsLoading(false);
             ws.close();
@@ -131,7 +120,7 @@ export function useWallet(enableJwt: boolean = false): UseWalletReturn {
       setError(err instanceof Error ? err.message : "Failed to create XUMM payload");
       setIsLoading(false);
     }
-  }, [enableJwt, setCookie]);
+  }, [enableJwt]);
 
   const connectGEM = useCallback(async () => {
     setIsLoading(true);
@@ -194,15 +183,18 @@ export function useWallet(enableJwt: boolean = false): UseWalletReturn {
       }
 
       setXrpAddress(checkSignData.address);
-      if (enableJwt) {
-        setCookie("jwt", checkSignData.token, { path: "/" });
+      if (enableJwt && checkSignData.token) {
+        await signIn("gem", {
+          token: checkSignData.token,
+          redirect: false,
+        });
       }
       setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect to GEM wallet");
       setIsLoading(false);
     }
-  }, [enableJwt, setCookie]);
+  }, [enableJwt]);
 
   const connectCrossmark = useCallback(async () => {
     setIsLoading(true);
@@ -252,27 +244,29 @@ export function useWallet(enableJwt: boolean = false): UseWalletReturn {
       }
 
       setXrpAddress(address);
-      if (enableJwt) {
-        setCookie("jwt", checkSignJson.token, { path: "/" });
+      if (enableJwt && checkSignJson.token) {
+        await signIn("crossmark", {
+          token: checkSignJson.token,
+          redirect: false,
+        });
       }
       setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect to Crossmark");
       setIsLoading(false);
     }
-  }, [enableJwt, setCookie]);
+  }, [enableJwt]);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
     setXrpAddress("");
-    setIsRetrieved(false);
     setXummQrCode("");
     setXummJumpLink("");
-    removeCookie("jwt");
+    await signOut({ redirect: false });
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-  }, [removeCookie]);
+  }, []);
 
   return {
     xrpAddress,
@@ -284,7 +278,7 @@ export function useWallet(enableJwt: boolean = false): UseWalletReturn {
     connectGEM,
     connectCrossmark,
     disconnect,
-    isRetrieved,
+    isRetrieved: status === "authenticated" && !!session?.user?.address,
   };
 }
 
